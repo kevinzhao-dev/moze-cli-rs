@@ -2,36 +2,64 @@
 
 ## Answering finance questions
 
-Use the local CLI to retrieve only the data needed for the question. Run commands from
-this directory with `./target/release/moze-rs`. Read `describe` once per session and
-`status` before reporting results. Use `schema` when selecting collections or fields.
-For installation, path overrides, sync, or scheduling, read [README.md](README.md).
+Use the read-only MCP tools or `./target/release/moze-rs query TOOL --args JSON`
+from this directory. Prefer these analytical tools over raw collection queries: they
+resolve relationships, aggregate the full matching snapshot, and return provenance
+and exclusions in the same response. For tool parameters, installation, semantics
+configuration, sync, or scheduling, read [README.md](README.md).
 
-1. Resolve the requested date in the user's timezone. State the backup cutoff when
-   answering about today or current balances; a backup is not a live bank connection.
-2. Query `list AHRecord --from YYYY-MM-DD --to YYYY-MM-DD --limit 100` for transactions.
-   Follow every `next_offset` until null, preserving filters and passing
-   `--snapshot` with the first page's `data.snapshot.sha256`. Restart if it changes.
-   Check each command's exit code and `ok`; an error is not an empty result.
-3. Resolve links using the returned `$ref` collection and `id`, e.g.
-   `list AHAccount --id SOURCE_ID`. Compare snapshot hashes across related queries;
-   repeat if the snapshot changed. CLI `--id` currently accepts string primary keys.
-4. Interpret records before summing. Deleted records are excluded by default, but
-   disabled records, recurring entries, transfers, refunds, and future entries need
-   separate treatment. Check `isEnabled`, `isEvent`, dates, `transferID`, `isRefund`,
-   currency, and source enum fields. A transfer's outgoing and incoming legs are one
-   movement between accounts, not consumption or income.
-5. Keep different currencies separate unless a verified conversion applies. Use
-   decimal arithmetic with explicit currency rounding for derived amounts. Preserve
-   original amounts and explain conversion assumptions when material.
-6. Answer in the user's language with the amount and a short breakdown. Distinguish
-   values read directly from the source from calculations and uncertain interpretations.
-   Completion means all relevant pages were checked, currencies and transaction kinds
-   accounted for, and the answer's date/cutoff is clear.
+1. Resolve the requested period in the user's timezone and pass explicit dates.
+   Start with `summarize_spending` for totals or trends, `compare_spending` for changes,
+   or `search_transactions` for records. Name/text filters can answer simple questions
+   such as electricity spending directly; use `resolve_entities` when an exact category
+   is needed or a name is ambiguous. For unknown vocabulary, use `list_entities`
+   for the declared catalog or `get_facets` for values observed in a period; follow
+   their cursors when completeness matters. Use `get_context` when capabilities or coverage
+   need investigation. High-level responses already include snapshot and backup metadata;
+   separate `describe`, `schema`, and `status` calls are unnecessary for this path.
+2. Check CLI exit status and `ok`, or the MCP error result. Pin follow-up calls to the
+   returned snapshot, and use returned drilldown tokens to preserve filters. Restart
+   the analysis if the snapshot changes. A failed query is not an empty result.
+3. Read coverage, exclusions, and semantic warnings before calling an amount spending.
+   Unknown source enums remain unknown unless an evidence-backed semantics profile
+   establishes their meaning. Source amounts are not automatically verified expenses.
+   Keep currencies separate; report refunds and net spending using the tool's definitions.
+   Exact `names`, `stores`, and `tags` filters use case-sensitive literals. Tag encodings
+   may be unknown: inspect warnings and unknown counts, and never guess delimiters or
+   interpret an unsupported-tag error as no matches.
+4. Answer in the user's language with the period, backup cutoff, amount, and relevant
+   breakdown. State material exclusions and distinguish observed changes from inferred
+   causes. A backup is not a live bank connection. Completed aggregation does not prove
+   all real-world spending was recorded or the requested period is fully covered.
+
+For monthly reports, read [monthly-spending-review](skills/monthly-spending-review/SKILL.md).
+For a category's history, read [category-deep-dive](skills/category-deep-dive/SKILL.md).
+For spending changes or reduction opportunities, read
+[spending-diagnostics](skills/spending-diagnostics/SKILL.md).
+
+### Raw collection fallback
+
+Use raw queries when the analytical tools cannot answer the question. Read `describe`
+once per session, `schema` for the required collections/fields, and `status` before
+reporting raw-query results.
+
+- Query `list AHRecord --from YYYY-MM-DD --to YYYY-MM-DD --limit 100`. Follow every
+  `next_offset` until null, preserving filters and passing `--snapshot` with the first
+  page's `data.snapshot.sha256`. Check every command's exit code and `ok`.
+- Resolve links using the returned `$ref` collection and `id`, e.g.
+  `list AHAccount --id SOURCE_ID`. Compare snapshot hashes across related queries;
+  repeat if the snapshot changed. CLI `--id` accepts string primary keys.
+- Interpret records before summing. Deleted records are excluded by default, while
+  disabled records, recurring entries, transfers, refunds, and future entries need
+  separate treatment. Check `isEnabled`, `isEvent`, dates, `transferID`, `isRefund`,
+  currency, and source enum fields. Paired transfer legs are one account movement,
+  not consumption or income.
+- Use decimal arithmetic with explicit currency rounding, keep currencies separate
+  unless a verified conversion applies, and preserve original source amounts.
 
 ## Balance and reporting limits
 
-The CLI does not yet implement a validated balance or monthly-report command.
+Analytical spending summaries do not validate account balances or reproduce all MOZE report rules.
 `originalAmount` is an opening amount; `balanceInfo` contains dated caches, not a
 single current balance. Never label either as today's available cash without validation.
 To reconstruct a balance, establish the cache boundary and inclusion rules, apply
