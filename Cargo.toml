@@ -1,0 +1,12 @@
+[package]
+name = "moze-rs"
+version = "0.1.0"
+edition = "2024"
+description = "Local, read-only agent interface to private MOZE backup snapshots"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
+serde_json = "1"

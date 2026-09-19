@@ -1,0 +1,17 @@
+name: Test synthetic data only
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci --ignore-scripts
+      - run: npx --no-install prebuild-install --runtime napi
+        working-directory: node_modules/realm
+      - run: cargo fmt --check
+      - run: cargo build --locked
+      - run: python3 -m unittest discover -s tests -v
